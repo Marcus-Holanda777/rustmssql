@@ -1,10 +1,26 @@
 use crate::MSchema;
 use parquet::{
-    basic::{LogicalType, Repetition, TimeUnit, Type as PhysicalType},
+    basic::{DecimalType, LogicalType, Repetition, TimeUnit, Type as PhysicalType},
+    data_type::{Decimal, Int32Type},
     format::{MicroSeconds, MilliSeconds},
-    schema::types::Type,
+    schema::types::{Type, TypePtr},
 };
-use std::sync::Arc;
+use std::{
+    any::Any,
+    collections::{BTreeMap, HashMap},
+    ops::Index,
+    sync::Arc,
+};
+use std::{fs, path::Path};
+use tiberius::{Column, ColumnData, QueryItem, QueryStream};
+use tokio_stream::StreamExt;
+
+use parquet::{file::writer::SerializedFileWriter, schema::parser::parse_message_type};
+
+enum Vetores {
+    IntVec32(Vec<Option<i32>>),
+    IntVec64(Vec<Option<i64>>),
+}
 
 fn get_type(col: &str, types: PhysicalType, logical: Option<LogicalType>) -> Type {
     Type::primitive_type_builder(&col, types)
@@ -82,4 +98,59 @@ pub fn create_schema_parquet(sql_types: Vec<MSchema>) -> Type {
         .with_fields(fields)
         .build()
         .unwrap()
+}
+
+pub fn create_file_parquet() {
+    let path = Path::new("sample.parquet");
+
+    let message_type = "
+        message schema {
+            REQUIRED INT32 b;
+        }
+    ";
+
+    let schema = Arc::new(parse_message_type(message_type).unwrap());
+    let file = fs::File::create(&path).unwrap();
+    let mut writer = SerializedFileWriter::new(file, schema, Default::default()).unwrap();
+
+    let mut row_group_writer = writer.next_row_group().unwrap();
+    while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
+        col_writer
+            .typed::<Int32Type>()
+            .write_batch(&[1, 2, 3, 4, 5], None, None)
+            .unwrap();
+        col_writer.close().unwrap()
+    }
+
+    row_group_writer.close().unwrap();
+    writer.close().unwrap();
+}
+
+pub async fn write_parquet_from_stream(
+    mut stream: QueryStream<'_>,
+    schema: Arc<Type>,
+    path: &str,
+) -> anyhow::Result<()> {
+    //let path_new = Path::new(path);
+    //let file = fs::File::create(&path_new).unwrap();
+    //let mut writer = SerializedFileWriter::new(file, schema, Default::default())?;
+    //let mut row_group_writer = writer.next_row_group()?;
+
+    // armazena os dados
+    let mut datatable = BTreeMap::new();
+    while let Some(row) = stream.try_next().await? {
+        if let QueryItem::Row(r) = row {
+            for (p, value) in r.into_iter().enumerate() {
+                datatable.entry(p).or_insert_with(Vec::new).push(value);
+            }
+        };
+    }
+
+    //row_group_writer.close()?;
+    //writer.close()?;
+    for (k, valor) in datatable {
+        println!("{k} == {valor:?}");
+    }
+
+    Ok(())
 }

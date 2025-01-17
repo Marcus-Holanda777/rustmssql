@@ -64,7 +64,6 @@ pub async fn shema_mssql(database: &str, table_name: &str) -> anyhow::Result<Vec
                 numeric_scale: r.get(4),
                 datetime_precision: r.get(5),
             };
-
             schema.push(ms_schema);
         }
     }
