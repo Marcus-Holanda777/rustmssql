@@ -1,26 +1,19 @@
 use crate::MSchema;
 use parquet::{
-    basic::{DecimalType, LogicalType, Repetition, TimeUnit, Type as PhysicalType},
-    data_type::{Decimal, Int32Type},
+    basic::{LogicalType, Repetition, TimeUnit, Type as PhysicalType},
+    data_type::Int32Type,
     format::{MicroSeconds, MilliSeconds},
-    schema::types::{Type, TypePtr},
+    schema::types::Type,
 };
 use std::{
-    any::Any,
-    collections::{BTreeMap, HashMap},
-    ops::Index,
+    collections::BTreeMap,
     sync::Arc,
 };
 use std::{fs, path::Path};
-use tiberius::{Column, ColumnData, QueryItem, QueryStream};
+use tiberius::{QueryItem, QueryStream};
 use tokio_stream::StreamExt;
 
 use parquet::{file::writer::SerializedFileWriter, schema::parser::parse_message_type};
-
-enum Vetores {
-    IntVec32(Vec<Option<i32>>),
-    IntVec64(Vec<Option<i64>>),
-}
 
 fn get_type(col: &str, types: PhysicalType, logical: Option<LogicalType>) -> Type {
     Type::primitive_type_builder(&col, types)
@@ -131,6 +124,8 @@ pub async fn write_parquet_from_stream(
     schema: Arc<Type>,
     path: &str,
 ) -> anyhow::Result<()> {
+
+    println!("{path} == {schema:?}");
     //let path_new = Path::new(path);
     //let file = fs::File::create(&path_new).unwrap();
     //let mut writer = SerializedFileWriter::new(file, schema, Default::default())?;
