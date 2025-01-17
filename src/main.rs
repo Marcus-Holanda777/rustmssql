@@ -9,22 +9,25 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let schema_sql: Vec<MSchema> = shema_mssql("cosmospdp", "sistema_nota").await?;
-    let schema = create_schema_parquet(schema_sql);
+    let name_server = "server";
+    let query = r#"query"#;
+    let file_parquet = "teste.parquet";
+
+    let schema_sql: Vec<MSchema> = shema_mssql_query(query, name_server).await?;
+
+    let schema = create_schema_parquet(&schema_sql);
+    println!("{:#?}", schema_sql);
 
     let mut buf = Vec::new();
     printer::print_schema(&mut buf, &schema);
 
-    let string_schema = String::from_utf8(buf).unwrap();
-
+    let string_schema = String::from_utf8(buf)?;
     println!("{}", string_schema);
 
-    let mut client = connect_server("cosmos").await?;
-    let stream = client
-        .query("select * from cosmospdp.dbo.sistema_nota", &[])
-        .await?;
+    let mut client = connect_server(name_server).await?;
+    let stream = client.query(query, &[]).await?;
 
-    write_parquet_from_stream(stream, Arc::new(schema), "teste.parquet").await?;
+    write_parquet_from_stream(stream, Arc::new(schema), file_parquet).await?;
 
     Ok(())
 }

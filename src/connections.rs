@@ -12,11 +12,14 @@ pub struct MSchema {
     pub data_type: Option<String>,
     pub is_nullable: Option<String>,
     pub numeric_precision: Option<u8>,
-    pub numeric_scale: Option<i32>,
-    pub datetime_precision: Option<i16>,
+    pub numeric_scale: Option<u8>,
+    pub datetime_precision: Option<u8>,
 }
 
 pub async fn connect_server(server: &str) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    //! Conecta ao servidor SQL Server.
+    //! Retorna um cliente para realizar consultas.
+
     let mut config: Config = Config::new();
     config.host(server);
     config.port(1433);
@@ -32,9 +35,16 @@ pub async fn connect_server(server: &str) -> anyhow::Result<Client<Compat<TcpStr
     Ok(client)
 }
 
-pub async fn shema_mssql(database: &str, table_name: &str) -> anyhow::Result<Vec<MSchema>> {
+pub async fn shema_mssql(
+    database: &str,
+    table_name: &str,
+    server: &str,
+) -> anyhow::Result<Vec<MSchema>> {
+    //! Retorna os metadados de uma tabela do banco.
+    //! Utiliza a tabela `INFORMATION_SCHEMA.columns` para obter os metadados.
+
     let mut schema: Vec<MSchema> = Vec::new();
-    let mut client: Client<Compat<TcpStream>> = connect_server("cosmos").await?;
+    let mut client: Client<Compat<TcpStream>> = connect_server(server).await?;
 
     let sql: String = format!(
         r#"
@@ -42,9 +52,9 @@ pub async fn shema_mssql(database: &str, table_name: &str) -> anyhow::Result<Vec
              column_name
             ,data_type
             ,is_nullable
-            ,numeric_precision
-            ,numeric_scale
-            ,datetime_precision
+            ,cast(numeric_precision as tinyint)  as numeric_precision
+            ,cast(numeric_scale as tinyint)      as numeric_scale
+            ,cast(datetime_precision as tinyint) as datetime_precision
         from {}.INFORMATION_SCHEMA.columns
         where TABLE_NAME = '{}'
        "#,
@@ -63,6 +73,48 @@ pub async fn shema_mssql(database: &str, table_name: &str) -> anyhow::Result<Vec
                 numeric_precision: r.get(3),
                 numeric_scale: r.get(4),
                 datetime_precision: r.get(5),
+            };
+            schema.push(ms_schema);
+        }
+    }
+
+    Ok(schema)
+}
+
+pub async fn shema_mssql_query(query: &str, server: &str) -> anyhow::Result<Vec<MSchema>> {
+    //! Retorna os metadados da consulta,
+    //! como nome da coluna, tipo de dado, se é nulo,
+    //! precisão numérica, escala numérica e precisão de data e hora.
+    //! Utiliza a `procedure sp_describe_first_result_set` para obter os metadados.
+
+    let mut schema: Vec<MSchema> = Vec::new();
+    let mut client: Client<Compat<TcpStream>> = connect_server(server).await?;
+
+    let sql: String = format!(
+        r#"
+        EXEC sp_describe_first_result_set @tsql = N'{}'
+       "#,
+        query
+    );
+
+    let select: Query<'_> = Query::new(sql);
+    let mut stream: QueryStream<'_> = select.query(&mut client).await?;
+
+    while let Some(row) = stream.try_next().await? {
+        if let QueryItem::Row(r) = row {
+            let is_nullable: &str = if r.get::<bool, _>(3).unwrap() {
+                "YES"
+            } else {
+                "NO"
+            };
+
+            let ms_schema: MSchema = MSchema {
+                column_name: r.get(2).map(|f: &str| f.to_string()),
+                data_type: r.get(5).map(|f: &str| f.to_string()),
+                is_nullable: Some(is_nullable.to_string()),
+                numeric_precision: r.get(7),
+                numeric_scale: r.get(8),
+                datetime_precision: r.get(8),
             };
             schema.push(ms_schema);
         }
