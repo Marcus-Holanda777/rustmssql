@@ -9,8 +9,16 @@ use parquet::{
 };
 use std::sync::Arc;
 use std::{fs, path::Path};
-use tiberius::{QueryItem, QueryStream};
+use tiberius::{ColumnData, QueryItem, QueryStream};
 use tokio_stream::StreamExt;
+use std::fmt::Debug;
+use std::collections::BTreeMap;
+
+#[derive(Debug)]
+enum TipoMssql {
+    Int(i32),
+    Varchar(String)
+}
 
 fn get_type(col: &str, types: PhysicalType, logical: Option<LogicalType>) -> Type {
     //! Retorna um tipo de dado para o parquet.
@@ -116,7 +124,8 @@ pub async fn write_parquet_from_stream(
     //! O Arc<Type> é o schema parquet.
     //! O &str é o caminho do arquivo parquet.
     //! Retorna um Result<()>.
-
+    
+    
     let path_new = Path::new(path);
     let file = fs::File::create(&path_new).unwrap();
 
@@ -126,32 +135,57 @@ pub async fn write_parquet_from_stream(
         .into();
 
     let mut writer = SerializedFileWriter::new(file, schema, props)?;
-
-    let mut prme_cd_produtos = Vec::new();
-    let mut nome_produto = Vec::new();
-
+    let mut data: BTreeMap<usize, Vec<TipoMssql>> = BTreeMap::new();
+    
     // armazena os dados
     while let Some(row) = stream.try_next().await? {
+
         if let QueryItem::Row(r) = row {
-            prme_cd_produtos.push(r.get::<i32, _>(0).unwrap_or(0));
-            nome_produto.push(
-                r.get::<&str, _>(1)
-                    .map(|f| f.to_string())
-                    .unwrap_or_default(),
-            );
+            for (p, col_data) in r.into_iter().enumerate() {
+                match col_data {
+                    ColumnData::I32(value) => {
+                        let value: i32 = value.unwrap_or_default();
+                        data.entry(p).or_insert_with(Vec::new).push(TipoMssql::Int(value));
+                    },
+                    ColumnData::String(value) => {
+                        let value = value.as_ref().map(|f| f.to_string()).unwrap_or_default();
+                        data.entry(p).or_insert_with(Vec::new).push(TipoMssql::Varchar(value));
+                    },
+                    _ => unimplemented!()
+                };
+                
+            };
         }
     }
 
     // GRAVAR NO ARQUIVO PARQUET
     let mut row_group_writer = writer.next_row_group().unwrap();
     if let Some(mut col_writer) = row_group_writer.next_column()? {
+
+        let inteiros = data.get(&0).unwrap().iter().map(|f| {
+            if let TipoMssql::Int(value) = f {
+                *value
+            } else {
+                0
+            }
+        }).collect::<Vec<_>>();
+
         col_writer
             .typed::<Int32Type>()
-            .write_batch(&prme_cd_produtos[..], None, None)?;
+            .write_batch(&inteiros[..], None, None)?;
         col_writer.close()?;
     }
 
     if let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
+        
+        let nome_produto = data.get(&1).unwrap().iter().map(|f| {
+            if let TipoMssql::Varchar(value) = f {
+                value.clone()
+            } else {
+                "".to_string()
+            }
+        }).collect::<Vec<_>>();
+
         let name_values: Vec<ByteArray> = nome_produto
             .clone()
             .into_iter()
@@ -166,6 +200,6 @@ pub async fn write_parquet_from_stream(
 
     row_group_writer.close()?;
     writer.close()?;
-
+    
     Ok(())
 }
