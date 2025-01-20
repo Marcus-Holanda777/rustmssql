@@ -58,7 +58,7 @@ fn to_type_column(schema: &MSchema) -> Type {
     let datetime_precision = match schema.datetime_precision.unwrap_or(0) {
         0..=3 => TimeUnit::MILLIS(MilliSeconds {}),
         4..=6 => TimeUnit::MICROS(MicroSeconds {}),
-        7.. => TimeUnit::NANOS(NanoSeconds {})
+        7.. => TimeUnit::NANOS(NanoSeconds {}),
     };
 
     let num_binary_digits = precision as f64 * 10f64.log2();
@@ -167,12 +167,12 @@ pub async fn write_parquet_from_stream(
     let mut col_key: usize = 0;
     while let Some(mut col_write) = row_group_writer.next_column()? {
         let col_data = data.get(&col_key).unwrap();
-        
+
         // para os tipos numeric e decimal
         let mssql = schema_sql.get(col_key).unwrap();
         let scale = mssql.numeric_scale.unwrap_or(0) as u32;
         let precision = mssql.numeric_precision.unwrap_or(0) as u32;
-    
+
         let num_binary_digits = precision as f64 * 10f64.log2();
         let length_in_bits = num_binary_digits + 1.0;
         let length_in_bytes = (length_in_bits / 8.0).ceil() as usize;
@@ -276,10 +276,13 @@ pub async fn write_parquet_from_stream(
                     .map(|f| match f {
                         ColumnData::Numeric(Some(v)) => {
                             let bytes_array: String = v.to_string();
-                            let bytes_decimal: Vec<u8> = encode_decimal(&bytes_array, precision, scale, length_in_bytes);
+                            let bytes_decimal: Vec<u8> =
+                                encode_decimal(&bytes_array, precision, scale, length_in_bytes);
                             FixedLenByteArray::from(ByteArray::from(bytes_decimal))
                         }
-                        ColumnData::Numeric(None) => FixedLenByteArray::from(ByteArray::from(zero_bytes.clone())),
+                        ColumnData::Numeric(None) => {
+                            FixedLenByteArray::from(ByteArray::from(zero_bytes.clone()))
+                        }
                         _ => FixedLenByteArray::from(ByteArray::from(zero_bytes.clone())),
                     })
                     .collect();
@@ -305,7 +308,8 @@ pub async fn write_parquet_from_stream(
                     .map(|f| match f {
                         ColumnData::DateTime(Some(dt)) => {
                             // Criar a data e hora a partir de `dt`
-                            let datetime = convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
+                            let datetime =
+                                convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
                             datetime.and_utc().timestamp_millis() // Retorna o timestamp diretamente como i64
                         }
                         ColumnData::DateTime(None) => {
