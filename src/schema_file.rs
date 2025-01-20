@@ -66,8 +66,6 @@ fn to_type_column(schema: &MSchema) -> Type {
     let length_in_bits = num_binary_digits + 1.0;
     let length_in_bytes = (length_in_bits / 8.0).ceil() as usize;
 
-    println!("{}, {}, {}, {}", opt, scale, precision, length_in_bytes);
-
     match opt {
         "int" | "smallint" | "tinyint" => get_type(&col, PhysicalType::INT32, None),
         "bigint" => get_type(&col, PhysicalType::INT64, None),
@@ -170,7 +168,7 @@ pub async fn write_parquet_from_stream(
 
         // para os tipos numeric e decimal
         let mssql = schema_sql.get(col_key).unwrap();
-        let scale = mssql.numeric_scale.unwrap_or(0) as u32;
+        // let scale = mssql.numeric_scale.unwrap_or(0) as u32;
         let precision = mssql.numeric_precision.unwrap_or(0) as u32;
 
         let num_binary_digits = precision as f64 * 10f64.log2();
@@ -275,9 +273,10 @@ pub async fn write_parquet_from_stream(
                     .iter()
                     .map(|f| match f {
                         ColumnData::Numeric(Some(v)) => {
-                            let bytes_array: String = v.to_string();
+                            let bytes_array = v.value();
+
                             let bytes_decimal: Vec<u8> =
-                                encode_decimal(&bytes_array, precision, scale, length_in_bytes);
+                                encode_decimal(bytes_array, precision, length_in_bytes);
                             FixedLenByteArray::from(ByteArray::from(bytes_decimal))
                         }
                         ColumnData::Numeric(None) => {
@@ -334,7 +333,54 @@ pub async fn write_parquet_from_stream(
                     .typed::<Int64Type>()
                     .write_batch(&lotes[..], None, None)?;
             }
-            _ => unimplemented!(),
+            ColumnData::Date(_) => {
+                let lotes: Vec<i32> = col_data
+                    .iter()
+                    .map(|f| match f {
+                        ColumnData::Date(Some(dt)) => {
+                            // Criar a data a partir de `dt`
+                            let days = dt.days() as i32;
+                            let base_date_parquet =
+                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
+                            let base_date_sql_server =
+                                NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
+
+                            let result_date =
+                                base_date_sql_server + chrono::Duration::days(days.into());
+                            let duration = result_date
+                                .signed_duration_since(base_date_parquet)
+                                .num_days();
+
+                            duration.try_into().unwrap_or_default()
+                        }
+                        ColumnData::Date(None) => {
+                            // Valor padrão para datas nulas
+                            // Criar a data a partir de `dt`
+                            let unix_epoch =
+                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
+                            let date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
+                            let duration = date.signed_duration_since(unix_epoch);
+                            duration.num_days().try_into().unwrap_or_default()
+                        }
+                        _ => {
+                            // Caso o valor não seja `ColumnData::Date`
+                            // Criar a data a partir de `dt`
+                            let unix_epoch =
+                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
+                            let date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
+                            let duration = date.signed_duration_since(unix_epoch);
+                            duration.num_days().try_into().unwrap_or_default()
+                        }
+                    })
+                    .collect();
+                col_write
+                    .typed::<Int32Type>()
+                    .write_batch(&lotes[..], None, None)?;
+            }
+            _ => {
+                println!("Tipo de dado não reconhecido, {:?}", col_data[0]);
+                unimplemented!()
+            }
         };
         col_write.close()?;
         col_key += 1;
@@ -346,13 +392,13 @@ pub async fn write_parquet_from_stream(
     Ok(())
 }
 
-fn encode_decimal(value: &str, precision: u32, scale: u32, length_in_bytes: usize) -> Vec<u8> {
+fn encode_decimal(scaled_value: i128, precision: u32, length_in_bytes: usize) -> Vec<u8> {
     // Converter a string para um número de ponto flutuante
-    let float_value: f64 = value.parse().expect("Invalid decimal string");
+    //!let float_value: f64 = value.parse().expect("Invalid decimal string");
 
     // Multiplicar pelo fator de escala (10^scale) usando i128 para evitar overflow
-    let scale_factor = 10i128.pow(scale);
-    let scaled_value = (float_value * scale_factor as f64).round() as i128;
+    //!let scale_factor = 10i128.pow(scale);
+    //!let scaled_value = (float_value * scale_factor as f64).round() as i128;
 
     // Garantir que o valor escalado cabe dentro da precisão definida
     let max_value = 10i128.pow(precision) - 1;
