@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     
     println!("{}", "=*".repeat(30));
     println!("Servidor: {}", cli.name_server);
-    println!("Arquivo parquet: {}", cli.file_parquet);
+    println!("Saida parquet: {}", cli.file_parquet);
 
     let mut query: String = String::new();
 
@@ -57,9 +57,9 @@ async fn main() -> anyhow::Result<()> {
     for param in cli.parameters {
         select.bind(param);
     }
-
-    let stream: QueryStream<'_> = select.query(&mut client).await?;
+    
     let start = std::time::Instant::now();
+    let stream: QueryStream<'_> = select.query(&mut client).await?;
 
     write_parquet_from_stream(
         stream,
@@ -69,7 +69,13 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     
-    println!("Finalizado ... | {:.2?} | OK |", start.elapsed());
+    // tempo de execucao
+    let duration = start.elapsed();
+    let seconds = duration.as_secs() % 60;
+    let hour = (duration.as_secs() / 60) / 60;
+    let minutes = (duration.as_secs() / 60) % 60;
+    
+    println!("Finalizado ... | {:0>2} hour | {:0>2} min | {:0>2} sec |", hour, minutes, seconds);
     println!("{}", "=*".repeat(30));
 
     Ok(())
