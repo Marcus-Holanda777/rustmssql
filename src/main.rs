@@ -6,8 +6,8 @@ mod connections;
 pub use connections::*;
 mod schema_file;
 pub use schema_file::*;
-use std::sync::Arc;
 use std::fs;
+use std::sync::Arc;
 
 /// Executa uma query no servidor e gera um arquivo parquet com o resultado
 #[derive(Parser)]
@@ -25,13 +25,13 @@ struct Cli {
     #[arg(short, long, default_value = "result_query.parquet")]
     file_parquet: String,
     /// parametro de condicoes da consulta (opcional)
-    parameters: Vec<String>
+    parameters: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli: Cli = Cli::parse();
-    
+
     println!("{}", "=*".repeat(30));
     println!("Servidor: {}", cli.name_server);
     println!("Saida parquet: {}", cli.file_parquet);
@@ -39,12 +39,11 @@ async fn main() -> anyhow::Result<()> {
     let mut query: String = String::new();
 
     if let Some(str_query) = cli.query {
-       println!("\nQuery importada ! ...");
-       query = str_query;
-    }
-    else if let Some(file_query) = cli.path_file {
-       query =  fs::read_to_string(&file_query)?;
-       println!("\nArquivo importado ! ...");
+        println!("\nQuery importada ! ...");
+        query = str_query;
+    } else if let Some(file_query) = cli.path_file {
+        query = fs::read_to_string(&file_query)?;
+        println!("\nArquivo importado ! ...");
     };
 
     let schema_sql: Vec<MSchema> =
@@ -57,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
     for param in cli.parameters {
         select.bind(param);
     }
-    
+
     let start = std::time::Instant::now();
     let stream: QueryStream<'_> = select.query(&mut client).await?;
 
@@ -68,14 +67,17 @@ async fn main() -> anyhow::Result<()> {
         cli.file_parquet.as_str(),
     )
     .await?;
-    
+
     // tempo de execucao
     let duration = start.elapsed();
     let seconds = duration.as_secs() % 60;
     let hour = (duration.as_secs() / 60) / 60;
     let minutes = (duration.as_secs() / 60) % 60;
-    
-    println!("Finalizado ... | {:0>2} hour | {:0>2} min | {:0>2} sec |", hour, minutes, seconds);
+
+    println!(
+        "Finalizado ... | {:0>2} hour | {:0>2} min | {:0>2} sec |",
+        hour, minutes, seconds
+    );
     println!("{}", "=*".repeat(30));
 
     Ok(())

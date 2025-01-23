@@ -23,7 +23,7 @@ fn get_type(col: &str, types: PhysicalType, logical: Option<LogicalType>) -> Typ
 
     Type::primitive_type_builder(&col, types)
         .with_logical_type(logical)
-        .with_repetition(Repetition::REQUIRED)
+        .with_repetition(Repetition::OPTIONAL)
         .build()
         .unwrap()
 }
@@ -77,7 +77,7 @@ fn to_type_column(schema: &MSchema) -> Type {
                 .with_logical_type(Some(LogicalType::Decimal { scale, precision }))
                 .with_precision(precision)
                 .with_scale(scale)
-                .with_repetition(Repetition::REQUIRED)
+                .with_repetition(Repetition::OPTIONAL)
                 .build()
                 .unwrap()
         }
@@ -175,207 +175,227 @@ pub async fn write_parquet_from_stream(
         let length_in_bits = num_binary_digits + 1.0;
         let length_in_bytes = (length_in_bits / 8.0).ceil() as usize;
 
-        let zero_bytes = vec![0u8; length_in_bytes];
+        // let zero_bytes = vec![0u8; length_in_bytes];
 
         // VERIFICAR O TIPO DE DADO -- POR COLUNA
         match &col_data[0] {
             ColumnData::I32(_) => {
-                let lotes: Vec<i32> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::I32(v) => v.unwrap_or_default(),
-                        _ => 0,
-                    })
-                    .collect();
+                let mut lotes: Vec<i32> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::I32(Some(valor)) => {
+                        lotes.push(*valor);
+                        levels.push(1);
+                    }
+                    ColumnData::I32(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int32Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::String(_) => {
-                let lotes: Vec<ByteArray> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::String(v) => ByteArray::from(
-                            v.as_ref()
-                                .map(|f| f.to_string())
-                                .unwrap_or_default()
-                                .as_str(),
-                        ),
-                        _ => ByteArray::from(""),
-                    })
-                    .collect();
-                col_write
-                    .typed::<ByteArrayType>()
-                    .write_batch(&lotes[..], None, None)?;
+                let mut lotes: Vec<ByteArray> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::String(Some(valor)) => {
+                        lotes.push(ByteArray::from(valor.to_string().as_str()));
+                        levels.push(1);
+                    }
+                    ColumnData::String(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
+                col_write.typed::<ByteArrayType>().write_batch(
+                    &lotes[..],
+                    Some(&levels[..]),
+                    None,
+                )?;
             }
             ColumnData::U8(_) => {
-                let lotes: Vec<i32> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::U8(v) => v.unwrap() as i32,
-                        _ => 0,
-                    })
-                    .collect();
+                let mut lotes: Vec<i32> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::U8(Some(valor)) => {
+                        lotes.push(*valor as i32);
+                        levels.push(1);
+                    }
+                    ColumnData::U8(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int32Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::I16(_) => {
-                let lotes: Vec<i32> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::I16(v) => v.unwrap_or_default() as i32,
-                        _ => 0,
-                    })
-                    .collect();
+                let mut lotes: Vec<i32> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::I16(Some(valor)) => {
+                        lotes.push(*valor as i32);
+                        levels.push(1);
+                    }
+                    ColumnData::I16(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int32Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::I64(_) => {
-                let lotes: Vec<i64> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::I64(v) => v.unwrap_or_default(),
-                        _ => 0,
-                    })
-                    .collect();
+                let mut lotes: Vec<i64> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::I64(Some(valor)) => {
+                        lotes.push(*valor);
+                        levels.push(1);
+                    }
+                    ColumnData::I64(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int64Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::F32(_) => {
-                let lotes: Vec<f32> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::F32(v) => v.unwrap_or_default(),
-                        _ => 0.0,
-                    })
-                    .collect();
+                let mut lotes: Vec<f32> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::F32(Some(valor)) => {
+                        lotes.push(*valor);
+                        levels.push(1);
+                    }
+                    ColumnData::F32(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<FloatType>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::F64(_) => {
-                let lotes: Vec<f64> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::F64(v) => v.unwrap_or_default(),
-                        _ => 0.0,
-                    })
-                    .collect();
+                let mut lotes: Vec<f64> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::F64(Some(valor)) => {
+                        lotes.push(*valor);
+                        levels.push(1);
+                    }
+                    ColumnData::F64(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<DoubleType>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::Numeric(_) => {
-                let lotes: Vec<FixedLenByteArray> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::Numeric(Some(v)) => {
-                            let bytes_array = v.value();
+                let mut lotes: Vec<FixedLenByteArray> = vec![];
+                let mut levels: Vec<i16> = vec![];
 
-                            let bytes_decimal: Vec<u8> =
-                                encode_decimal(bytes_array, precision, length_in_bytes);
-                            FixedLenByteArray::from(ByteArray::from(bytes_decimal))
-                        }
-                        ColumnData::Numeric(None) => {
-                            FixedLenByteArray::from(ByteArray::from(zero_bytes.clone()))
-                        }
-                        _ => FixedLenByteArray::from(ByteArray::from(zero_bytes.clone())),
-                    })
-                    .collect();
-                col_write
-                    .typed::<FixedLenByteArrayType>()
-                    .write_batch(&lotes[..], None, None)?;
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::Numeric(Some(v)) => {
+                        let bytes_array = v.value();
+
+                        let bytes_decimal: Vec<u8> =
+                            encode_decimal(bytes_array, precision, length_in_bytes);
+
+                        let row_add = FixedLenByteArray::from(ByteArray::from(bytes_decimal));
+                        lotes.push(row_add);
+                        levels.push(1);
+                    }
+                    ColumnData::Numeric(None) => {
+                        levels.push(0);
+                    }
+                    _ => levels.push(0),
+                });
+
+                col_write.typed::<FixedLenByteArrayType>().write_batch(
+                    &lotes[..],
+                    Some(&levels[..]),
+                    None,
+                )?;
             }
             ColumnData::Bit(_) => {
-                let lotes: Vec<bool> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::Bit(v) => v.unwrap_or_default(),
-                        _ => false,
-                    })
-                    .collect();
+                let mut lotes: Vec<bool> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::Bit(Some(valor)) => {
+                        lotes.push(*valor);
+                        levels.push(1);
+                    }
+                    ColumnData::Bit(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<BoolType>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::DateTime(_) => {
-                let lotes: Vec<i64> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::DateTime(Some(dt)) => {
-                            // Criar a data e hora a partir de `dt`
-                            let datetime =
-                                convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
-                            datetime.and_utc().timestamp_millis() // Retorna o timestamp diretamente como i64
-                        }
-                        ColumnData::DateTime(None) => {
-                            // Valor padrão para datas nulas
-                            let default_datetime = NaiveDateTime::new(
-                                NaiveDate::from_ymd_opt(1900, 1, 1).unwrap(),
-                                chrono::NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap(),
-                            );
-                            default_datetime.and_utc().timestamp_millis()
-                        }
-                        _ => {
-                            // Caso o valor não seja `ColumnData::DateTime`
-                            let default_datetime = NaiveDateTime::new(
-                                NaiveDate::from_ymd_opt(1900, 1, 1).unwrap(),
-                                chrono::NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap(),
-                            );
-                            default_datetime.and_utc().timestamp_millis()
-                        }
-                    })
-                    .collect();
+                let mut lotes: Vec<i64> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::DateTime(Some(dt)) => {
+                        // Criar a data e hora a partir de `dt`
+                        let datetime =
+                            convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
+
+                        let row_add = datetime.and_utc().timestamp_millis(); // Retorna o timestamp diretamente como i64
+                        lotes.push(row_add);
+                        levels.push(1);
+                    }
+                    ColumnData::DateTime(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int64Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::Date(_) => {
-                let lotes: Vec<i32> = col_data
-                    .iter()
-                    .map(|f| match f {
-                        ColumnData::Date(Some(dt)) => {
-                            // Criar a data a partir de `dt`
-                            let days = dt.days() as i32;
-                            let base_date_parquet =
-                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
-                            let base_date_sql_server =
-                                NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
+                let mut lotes: Vec<i32> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
 
-                            let result_date =
-                                base_date_sql_server + chrono::Duration::days(days.into());
-                            let duration = result_date
-                                .signed_duration_since(base_date_parquet)
-                                .num_days();
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::Date(Some(dt)) => {
+                        // Criar a data a partir de `dt`
+                        let days = dt.days() as i32;
+                        let base_date_parquet =
+                            NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
+                        let base_date_sql_server =
+                            NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
 
-                            duration.try_into().unwrap_or_default()
-                        }
-                        ColumnData::Date(None) => {
-                            // Valor padrão para datas nulas
-                            // Criar a data a partir de `dt`
-                            let unix_epoch =
-                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
-                            let date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
-                            let duration = date.signed_duration_since(unix_epoch);
-                            duration.num_days().try_into().unwrap_or_default()
-                        }
-                        _ => {
-                            // Caso o valor não seja `ColumnData::Date`
-                            // Criar a data a partir de `dt`
-                            let unix_epoch =
-                                NaiveDate::from_ymd_opt(1970, 1, 1).unwrap_or_default();
-                            let date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
-                            let duration = date.signed_duration_since(unix_epoch);
-                            duration.num_days().try_into().unwrap_or_default()
-                        }
-                    })
-                    .collect();
+                        let result_date =
+                            base_date_sql_server + chrono::Duration::days(days.into());
+                        let duration = result_date
+                            .signed_duration_since(base_date_parquet)
+                            .num_days();
+
+                        let row_add = duration.try_into().unwrap_or_default();
+                        lotes.push(row_add);
+                        levels.push(1);
+                    }
+                    ColumnData::Date(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
                 col_write
                     .typed::<Int32Type>()
-                    .write_batch(&lotes[..], None, None)?;
+                    .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             _ => {
                 println!("Tipo de dado não reconhecido, {:?}", col_data[0]);
