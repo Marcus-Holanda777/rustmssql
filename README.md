@@ -1,4 +1,4 @@
-# SQL Server to Parquet Export Tool
+# SQL Server to Parquet Export Tool 🦀
 
 Este projeto é uma ferramenta de linha de comando (CLI) desenvolvida em Rust, que permite exportar consultas do SQL Server para arquivos no formato Parquet.
 
@@ -63,11 +63,3 @@ rustmssql --name-server "localhost" --file-parquet "resultado.parquet" --query "
 ## Contribuição
 
 Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
-
-## Licença
-
-Este projeto está licenciado sob a [MIT License](LICENSE).
-
----
-
-Desenvolvido com ❤️ por Marcus Holanda.
