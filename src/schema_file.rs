@@ -82,7 +82,7 @@ fn to_type_column(schema: &MSchema) -> Type {
                 .unwrap()
         }
         "bit" => get_type(&col, PhysicalType::BOOLEAN, None),
-        "char" | "varchar" | "text" | "nchar" | "nvarchar" | "ntext" => {
+        "char" | "varchar" | "text" | "nchar" | "nvarchar" | "ntext" | "xml" => {
             get_type(&col, PhysicalType::BYTE_ARRAY, Some(LogicalType::String))
         }
         "datetime" | "datetime2" | "smalldatetime" => get_type(
@@ -301,8 +301,8 @@ pub async fn write_parquet_from_stream(
                     .write_batch(&lotes[..], Some(&levels[..]), None)?;
             }
             ColumnData::Numeric(_) => {
-                let mut lotes: Vec<FixedLenByteArray> = vec![];
-                let mut levels: Vec<i16> = vec![];
+                let mut lotes: Vec<FixedLenByteArray> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
 
                 col_data.iter().for_each(|f| match f {
                     ColumnData::Numeric(Some(v)) => {
@@ -396,6 +396,25 @@ pub async fn write_parquet_from_stream(
                 col_write
                     .typed::<Int32Type>()
                     .write_batch(&lotes[..], Some(&levels[..]), None)?;
+            }
+            ColumnData::Xml(_) => {
+                let mut lotes: Vec<ByteArray> = Vec::new();
+                let mut levels: Vec<i16> = Vec::new();
+
+                col_data.iter().for_each(|f| match f {
+                    ColumnData::Xml(Some(valor)) => {
+                        lotes.push(ByteArray::from(valor.to_string().as_str()));
+                        levels.push(1);
+                    }
+                    ColumnData::Xml(None) => levels.push(0),
+                    _ => levels.push(0),
+                });
+
+                col_write.typed::<ByteArrayType>().write_batch(
+                    &lotes[..],
+                    Some(&levels[..]),
+                    None,
+                )?;
             }
             _ => {
                 println!("Tipo de dado não reconhecido, {:?}", col_data[0]);
