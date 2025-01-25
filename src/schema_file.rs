@@ -1,6 +1,6 @@
 use crate::MSchema;
 use chrono::{NaiveDate, NaiveDateTime};
-use parquet::basic::Compression;
+use parquet::basic::{Compression, ZstdLevel};
 use parquet::data_type::{
     BoolType, DoubleType, FixedLenByteArray, FixedLenByteArrayType, FloatType, Int64Type,
 };
@@ -12,11 +12,14 @@ use parquet::{
     format::{MicroSeconds, MilliSeconds},
     schema::types::Type,
 };
-use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::io::Write;
 use std::sync::Arc;
 use std::{fs, path::Path};
 use tiberius::{ColumnData, QueryItem, QueryStream};
 use tokio_stream::StreamExt;
+
+const MAX_GROUP_SIZE: i32 = 100_000;
 
 fn get_type(col: &str, types: PhysicalType, logical: Option<LogicalType>) -> Type {
     //! Retorna um tipo de dado para o parquet.
@@ -127,42 +130,16 @@ pub fn create_schema_parquet(sql_types: &Vec<MSchema>) -> Type {
         .unwrap()
 }
 
-pub async fn write_parquet_from_stream(
-    mut stream: QueryStream<'_>,
-    schema: Arc<Type>,
+async fn process_rows<W: Write>(
     schema_sql: &Vec<MSchema>,
-    path: &str,
-) -> anyhow::Result<()> {
-    //! Escreve um arquivo parquet a partir de um QueryStream.
-    //! Recebe um QueryStream, um Arc<Type> e um &str.
-    //! O Arc<Type> é o schema parquet.
-    //! O &str é o caminho do arquivo parquet.
-    //! Retorna um Result<()>.
-
-    let path_new = Path::new(path);
-    let file = fs::File::create(&path_new).unwrap();
-
-    let props = WriterProperties::builder()
-        .set_compression(Compression::SNAPPY)
-        .build()
-        .into();
-
-    let mut writer = SerializedFileWriter::new(file, schema, props)?;
-    let mut data: BTreeMap<usize, Vec<ColumnData>> = BTreeMap::new();
-
-    // armazena os dados
-    while let Some(row) = stream.try_next().await? {
-        if let QueryItem::Row(r) = row {
-            for (p, col_data) in r.into_iter().enumerate() {
-                data.entry(p).or_insert_with(Vec::new).push(col_data);
-            }
-        }
-    }
-
-    // GRAVAR NO ARQUIVO PARQUET
-    let mut row_group_writer = writer.next_row_group()?;
-
+    data: &mut HashMap<usize, Vec<ColumnData<'_>>>,
+    writer: &mut SerializedFileWriter<W>,
+) -> anyhow::Result<()>
+where
+    W: Send,
+{
     let mut col_key: usize = 0;
+    let mut row_group_writer = writer.next_row_group()?;
     while let Some(mut col_write) = row_group_writer.next_column()? {
         let col_data = data.get(&col_key).unwrap();
 
@@ -422,10 +399,59 @@ pub async fn write_parquet_from_stream(
             }
         };
         col_write.close()?;
+
+        // limpando o vetor
         col_key += 1;
     }
 
+    data.clear();
     row_group_writer.close()?;
+
+    Ok(())
+}
+
+pub async fn write_parquet_from_stream(
+    mut stream: QueryStream<'_>,
+    schema: Arc<Type>,
+    schema_sql: &Vec<MSchema>,
+    path: &str,
+) -> anyhow::Result<()> {
+    //! Escreve um arquivo parquet a partir de um QueryStream.
+    //! Recebe um QueryStream, um Arc<Type> e um &str.
+    //! O Arc<Type> é o schema parquet.
+    //! O &str é o caminho do arquivo parquet.
+    //! Retorna um Result<()>.
+
+    let path_new = Path::new(path);
+    let file = fs::File::create(&path_new).unwrap();
+
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(ZstdLevel::try_new(1)?))
+        .build()
+        .into();
+
+    let mut writer = SerializedFileWriter::new(file, schema, props)?;
+    let mut data: HashMap<usize, Vec<ColumnData>> = HashMap::new();
+
+    // armazena os dados
+    let mut rows_batch: i32 = 1;
+    while let Some(row) = stream.try_next().await? {
+        if let QueryItem::Row(r) = row {
+            for (p, col_data) in r.into_iter().enumerate() {
+                data.entry(p).or_insert_with(Vec::new).push(col_data);
+            }
+
+            if rows_batch % MAX_GROUP_SIZE == 0 {
+                process_rows(&schema_sql, &mut data, &mut writer).await?;
+            }
+            rows_batch += 1;
+        }
+    }
+
+    if !data.is_empty() {
+        process_rows(&schema_sql, &mut data, &mut writer).await?;
+    }
+
     writer.close()?;
 
     Ok(())
