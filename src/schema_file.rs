@@ -1,5 +1,6 @@
 use crate::MSchema;
 use crate::converter::{Converter, parse_rows};
+use indicatif::{ProgressBar, ProgressStyle};
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::{properties::WriterProperties, writer::SerializedFileWriter};
 use parquet::format::NanoSeconds;
@@ -199,6 +200,16 @@ pub async fn write_parquet_from_stream(
 
     // armazena os dados
     let mut rows_batch: i32 = 1;
+
+    // Barra de progresso
+    let progress = ProgressBar::new_spinner();
+    progress.set_style(
+        ProgressStyle::with_template("[{elapsed_precise}] {spinner:.green} {msg}")?
+            .tick_strings(&["-", "\\", "|", "/"]),
+    );
+    progress.enable_steady_tick(std::time::Duration::from_millis(100));
+    progress.set_message("Exportando ...");
+
     while let Some(row) = stream.try_next().await? {
         if let QueryItem::Row(r) = row {
             for (p, col_data) in r.into_iter().enumerate() {
@@ -214,9 +225,11 @@ pub async fn write_parquet_from_stream(
 
     if !data.is_empty() {
         process_rows(&schema_sql, &mut data, &mut writer).await?;
+        progress.inc(1);
     }
 
     writer.close()?;
+    progress.finish_with_message("Finalizado ...");
 
     Ok(())
 }

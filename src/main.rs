@@ -42,11 +42,11 @@ async fn main() -> anyhow::Result<()> {
     let mut query: String = String::new();
 
     if let Some(str_query) = cli.query {
-        println!("\nQuery importada ! ...");
+        println!("\n=> Query importada ! ...\n\n");
         query = str_query;
     } else if let Some(file_query) = cli.path_file {
         query = fs::read_to_string(&file_query)?;
-        println!("\nArquivo importado ! ...");
+        println!("\n=> Arquivo importado ! ...");
     };
 
     let schema_sql: Vec<MSchema> =
@@ -60,7 +60,6 @@ async fn main() -> anyhow::Result<()> {
         select.bind(param);
     }
 
-    let start = std::time::Instant::now();
     let stream: QueryStream<'_> = select.query(&mut client).await?;
 
     write_parquet_from_stream(
@@ -71,16 +70,6 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    // tempo de execucao
-    let duration = start.elapsed();
-    let seconds = duration.as_secs() % 60;
-    let hour = (duration.as_secs() / 60) / 60;
-    let minutes = (duration.as_secs() / 60) % 60;
-
-    println!(
-        "Finalizado ... | {:0>2} hour | {:0>2} min | {:0>2} sec |",
-        hour, minutes, seconds
-    );
     println!("{}", "=*".repeat(30));
 
     Ok(())
