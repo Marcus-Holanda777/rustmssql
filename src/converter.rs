@@ -214,11 +214,11 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                     let scale = dt.time().scale() as u32;
 
                     let nanos = increments * 10i64.pow(9 - scale);
-                    let time_t = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                    let time_t = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
                         + chrono::Duration::nanoseconds(nanos);
 
                     let datetime = NaiveDateTime::new(result_date, time_t);
-                    let row_add = datetime.and_utc().timestamp_nanos_opt().unwrap();
+                    let row_add = datetime.and_utc().timestamp_nanos_opt().unwrap_or_default();
 
                     lotes.push(row_add);
                     levels.push(1);

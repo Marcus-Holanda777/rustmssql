@@ -16,14 +16,23 @@ pub struct MSchema {
     pub datetime_precision: Option<u8>,
 }
 
-pub async fn connect_server(server: &str) -> anyhow::Result<Client<Compat<TcpStream>>> {
+pub async fn connect_server(
+    server: &str,
+    user: Option<&str>,
+    password: Option<&str>,
+) -> anyhow::Result<Client<Compat<TcpStream>>> {
     //! Conecta ao servidor SQL Server.
     //! Retorna um cliente para realizar consultas.
 
     let mut config: Config = Config::new();
     config.host(server);
     config.port(1433);
-    config.authentication(AuthMethod::Integrated);
+
+    if let (Some(user), Some(password)) = (user, password) {
+        config.authentication(AuthMethod::sql_server(user, password));
+    } else {
+        config.authentication(AuthMethod::Integrated);
+    }
     config.trust_cert();
 
     let tcp_stream: TcpStream = TcpStream::connect(config.get_addr()).await?;
@@ -39,12 +48,14 @@ pub async fn shema_mssql(
     database: &str,
     table_name: &str,
     server: &str,
+    user: Option<&str>,
+    password: Option<&str>,
 ) -> anyhow::Result<Vec<MSchema>> {
     //! Retorna os metadados de uma tabela do banco.
     //! Utiliza a tabela `INFORMATION_SCHEMA.columns` para obter os metadados.
 
     let mut schema: Vec<MSchema> = Vec::new();
-    let mut client: Client<Compat<TcpStream>> = connect_server(server).await?;
+    let mut client: Client<Compat<TcpStream>> = connect_server(server, user, password).await?;
 
     let sql: String = format!(
         r#"
@@ -81,14 +92,19 @@ pub async fn shema_mssql(
     Ok(schema)
 }
 
-pub async fn shema_mssql_query(query: &str, server: &str) -> anyhow::Result<Vec<MSchema>> {
+pub async fn shema_mssql_query(
+    query: &str,
+    server: &str,
+    user: Option<&str>,
+    password: Option<&str>,
+) -> anyhow::Result<Vec<MSchema>> {
     //! Retorna os metadados da consulta,
     //! como nome da coluna, tipo de dado, se é nulo,
     //! precisão numérica, escala numérica e precisão de data e hora.
     //! Utiliza a `procedure sp_describe_first_result_set` para obter os metadados.
 
     let mut schema: Vec<MSchema> = Vec::new();
-    let mut client: Client<Compat<TcpStream>> = connect_server(server).await?;
+    let mut client: Client<Compat<TcpStream>> = connect_server(server, user, password).await?;
 
     let sql: String = format!(
         r#"

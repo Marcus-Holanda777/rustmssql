@@ -29,6 +29,12 @@ struct Cli {
     file_parquet: String,
     /// parametro de condicoes da consulta (opcional)
     parameters: Vec<String>,
+    /// nome do usuario
+    #[arg(short, long)]
+    user: Option<String>,
+    /// senha de acesso
+    #[arg(short, long)]
+    secret: Option<String>,
 }
 
 #[tokio::main]
@@ -49,11 +55,21 @@ async fn main() -> anyhow::Result<()> {
         println!("\n=> Arquivo importado ! ...\n");
     };
 
-    let schema_sql: Vec<MSchema> =
-        shema_mssql_query(query.as_str(), cli.name_server.as_str()).await?;
+    let schema_sql: Vec<MSchema> = shema_mssql_query(
+        query.as_str(),
+        cli.name_server.as_str(),
+        cli.user.as_deref(),
+        cli.secret.as_deref(),
+    )
+    .await?;
     let schema = create_schema_parquet(&schema_sql);
 
-    let mut client = connect_server(cli.name_server.as_str()).await?;
+    let mut client = connect_server(
+        cli.name_server.as_str(),
+        cli.user.as_deref(),
+        cli.secret.as_deref(),
+    )
+    .await?;
 
     let mut select: Query<'_> = Query::new(query);
     for param in cli.parameters {
