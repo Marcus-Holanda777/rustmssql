@@ -205,6 +205,25 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                     levels.push(1);
                 }
                 ColumnData::DateTime(None) => levels.push(0),
+                ColumnData::DateTime2(Some(dt)) => {
+                    let days = dt.date().days();
+                    let base_date_sql_server = NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
+                    let result_date = base_date_sql_server + chrono::Duration::days(days.into());
+
+                    let increments = dt.time().increments() as i64;
+                    let scale = dt.time().scale() as u32;
+
+                    let nanos = increments * 10i64.pow(9 - scale);
+                    let time_t = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap()
+                        + chrono::Duration::nanoseconds(nanos);
+
+                    let datetime = NaiveDateTime::new(result_date, time_t);
+                    let row_add = datetime.and_utc().timestamp_nanos_opt().unwrap();
+
+                    lotes.push(row_add);
+                    levels.push(1);
+                }
+                ColumnData::DateTime2(None) => levels.push(0),
                 _ => levels.push(0),
             });
 

@@ -68,7 +68,23 @@ fn to_type_column(schema: &MSchema) -> Type {
     let length_in_bytes = (length_in_bits / 8.0).ceil() as usize;
 
     match opt {
-        "int" | "smallint" | "tinyint" => get_type(&col, PhysicalType::INT32, None),
+        "tinyint" => get_type(
+            &col,
+            PhysicalType::INT32,
+            Some(LogicalType::Integer {
+                bit_width: 8,
+                is_signed: false,
+            }),
+        ),
+        "smallint" => get_type(
+            &col,
+            PhysicalType::INT32,
+            Some(LogicalType::Integer {
+                bit_width: 16,
+                is_signed: true,
+            }),
+        ),
+        "int" => get_type(&col, PhysicalType::INT32, None),
         "bigint" => get_type(&col, PhysicalType::INT64, None),
         "float" => get_type(&col, PhysicalType::DOUBLE, None),
         "real" => get_type(&col, PhysicalType::FLOAT, None),
@@ -159,6 +175,7 @@ where
             ColumnData::Numeric(_) => parse_rows::<FixedLenByteArray>(conv)?,
             ColumnData::Bit(_) => parse_rows::<bool>(conv)?,
             ColumnData::DateTime(_) => parse_rows::<i64>(conv)?,
+            ColumnData::DateTime2(_) => parse_rows::<i64>(conv)?,
             ColumnData::Date(_) => parse_rows::<i32>(conv)?,
             ColumnData::Xml(_) => parse_rows::<ByteArray>(conv)?,
             _ => {
