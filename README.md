@@ -85,7 +85,7 @@ rustmssql -n "localhost" -f "resultado.parquet" -q "SELECT * FROM tabela WHERE c
 
 ## Download arquivo binário para windows
 
-[Windows](https://github.com/Marcus-Holanda777/rustmssql/releases/tag/v0.1.0)
+[Windows](https://github.com/Marcus-Holanda777/rustmssql/releases/tag/v0.1.1)
 
 ## Contribuição
 
