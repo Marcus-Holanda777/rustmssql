@@ -60,9 +60,9 @@ rustmssql --name-server "localhost" --file-parquet "resultado.parquet" --query "
 - `--path-file`: Caminho para um arquivo contendo a consulta SQL (alternativo ao `--query`).
 - `--params`: Vetor de parâmetros para consultas parametrizadas (opcional).
 
-### Download bibário para windows
+### Download arquivo binário para windows
 
-["Windows"](https://github.com/Marcus-Holanda777/rustmssql/releases/tag/v0.1.0)
+[Windows](https://github.com/Marcus-Holanda777/rustmssql/releases/tag/v0.1.0)
 
 ## Contribuição
 
