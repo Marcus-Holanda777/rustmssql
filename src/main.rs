@@ -42,11 +42,11 @@ async fn main() -> anyhow::Result<()> {
     let mut query: String = String::new();
 
     if let Some(str_query) = cli.query {
-        println!("\n=> Query importada ! ...\n\n");
+        println!("\n=> Query importada ! ...\n");
         query = str_query;
     } else if let Some(file_query) = cli.path_file {
         query = fs::read_to_string(&file_query)?;
-        println!("\n=> Arquivo importado ! ...");
+        println!("\n=> Arquivo importado ! ...\n");
     };
 
     let schema_sql: Vec<MSchema> =
