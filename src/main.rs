@@ -6,6 +6,9 @@ mod connections;
 pub use connections::*;
 mod schema_file;
 pub use schema_file::*;
+mod converter;
+pub use converter::*;
+
 use std::fs;
 use std::sync::Arc;
 
