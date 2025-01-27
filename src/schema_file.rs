@@ -242,7 +242,6 @@ pub async fn write_parquet_from_stream(
 
     if !data.is_empty() {
         process_rows(&schema_sql, &mut data, &mut writer).await?;
-        progress.inc(1);
     }
 
     writer.close()?;
