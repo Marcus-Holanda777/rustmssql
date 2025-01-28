@@ -44,7 +44,7 @@ pub async fn connect_server(
     Ok(client)
 }
 
-pub async fn shema_mssql(
+pub async fn schema_mssql(
     database: &str,
     table_name: &str,
     server: &str,
@@ -92,7 +92,7 @@ pub async fn shema_mssql(
     Ok(schema)
 }
 
-pub async fn shema_mssql_query(
+pub async fn schema_mssql_query(
     query: &str,
     server: &str,
     user: Option<&str>,

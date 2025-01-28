@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
         println!("\n=> Arquivo importado ! ...\n");
     };
 
-    let schema_sql: Vec<MSchema> = shema_mssql_query(
+    let schema_sql: Vec<MSchema> = schema_mssql_query(
         query.as_str(),
         cli.name_server.as_str(),
         cli.user.as_deref(),
