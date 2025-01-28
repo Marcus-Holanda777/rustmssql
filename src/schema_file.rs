@@ -225,7 +225,7 @@ pub async fn write_parquet_from_stream(
             .tick_strings(&["-", "\\", "|", "/"]),
     );
     progress.enable_steady_tick(std::time::Duration::from_millis(100));
-    progress.set_message("Exportando ...");
+    progress.set_message("Consultando ...");
 
     while let Some(row) = stream.try_next().await? {
         if let QueryItem::Row(r) = row {
@@ -234,6 +234,7 @@ pub async fn write_parquet_from_stream(
             }
 
             if rows_batch % MAX_GROUP_SIZE == 0 {
+                progress.set_message(format!("Gravando {} regitros ...", rows_batch));
                 process_rows(&schema_sql, &mut data, &mut writer).await?;
             }
             rows_batch += 1;
@@ -241,11 +242,12 @@ pub async fn write_parquet_from_stream(
     }
 
     if !data.is_empty() {
+        progress.set_message(format!("Gravando {} regitros ...", rows_batch));
         process_rows(&schema_sql, &mut data, &mut writer).await?;
     }
 
     writer.close()?;
-    progress.finish_with_message("Finalizado ...");
+    progress.finish_with_message(format!("Finalizados {} registros exportados. ", rows_batch));
 
     Ok(())
 }
