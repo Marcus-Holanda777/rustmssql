@@ -83,6 +83,34 @@ rustmssql -n "localhost" -f "resultado.parquet" -q "SELECT * FROM tabela WHERE c
 - `--secret`: senha de acesso (depende do `--user`).
 - `--params`: Vetor de parâmetros para consultas parametrizadas (opcional).
 
+## Correspondência entre os tipos
+
+| SQL Server Type       | Parquet Type           | Logical Type               |
+|-----------------------|------------------------|----------------------------|
+| `INT`                 | `INT32`                |                            |
+| `BIGINT`              | `INT64`                |                            |
+| `SMALLINT`            | `INT32`                | `Int 16 bit width signed`  |
+| `TINYINT`             | `INT32`                | `Int 8 bit width unsigned` | 
+| `BIT`                 | `BOOLEAN`              |                            |
+| `FLOAT`               | `DOUBLE`               |                            |
+| `REAL`                | `FLOAT`                |                            |
+| `DECIMAL`             | `FIXED_LEN_BYTE_ARRAY` | `Decimal precision, scale` |  
+| `NUMERIC`             | `FIXED_LEN_BYTE_ARRAY` | `Decimal precision, scale` |
+| `CHAR`                | `BYTE_ARRAY`           | `String`                   |
+| `VARCHAR`             | `BYTE_ARRAY`           | `String`                   |
+| `NCHAR`               | `BYTE_ARRAY`           | `String`                   |
+| `NVARCHAR`            | `BYTE_ARRAY`           | `String`                   |
+| `TEXT`                | `BYTE_ARRAY`           | `String`                   |
+| `NTEXT`               | `BYTE_ARRAY`           | `String`                   |
+| `XML`                 | `BYTE_ARRAY`           | `String`                   |
+| `BINARY`              | `BYTE_ARRAY`           |                            |
+| `VARBINARY`           | `BYTE_ARRAY`           |                            |
+| `IMAGE`               | `BYTE_ARRAY`           |                            |
+| `DATE`                | `INT32`                | `Date`                     |
+| `DATETIME`            | `INT64`                | `Timestamp`                |
+| `DATETIME2`           | `INT64`                | `Timestamp`                |
+| `TIME`                | `INT64`                | `Time`                     |
+
 ## Download arquivo binário para windows
 
 [Windows](https://github.com/Marcus-Holanda777/rustmssql/releases/tag/v0.1.1)
