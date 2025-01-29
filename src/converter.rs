@@ -204,8 +204,8 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
 
                     let row_add = match precision {
                         0..=3 => datetime.and_utc().timestamp_millis(),
-                        4..=6 => datetime.and_utc().timestamp_millis(),
-                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default()
+                        4..=6 => datetime.and_utc().timestamp_micros(),
+                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default(),
                     };
 
                     lotes.push(row_add);
@@ -227,8 +227,8 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                     let datetime = NaiveDateTime::new(result_date, time_t);
                     let row_add = match precision {
                         0..=3 => datetime.and_utc().timestamp_millis(),
-                        4..=6 => datetime.and_utc().timestamp_millis(),
-                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default()
+                        4..=6 => datetime.and_utc().timestamp_micros(),
+                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default(),
                     };
 
                     lotes.push(row_add);
@@ -238,14 +238,11 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                 ColumnData::Time(Some(dt)) => {
                     let increments = dt.increments() as i64;
                     let scale = dt.scale() as u32;
-
                     let nanos = increments * 10i64.pow(9 - scale);
 
-                    println!("{}, {}", increments, scale);
                     lotes.push(nanos);
                     levels.push(1);
-
-                },
+                }
                 ColumnData::Time(None) => levels.push(0),
                 _ => levels.push(0),
             });

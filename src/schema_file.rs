@@ -176,6 +176,7 @@ where
             ColumnData::Bit(_) => parse_rows::<bool>(conv)?,
             ColumnData::DateTime(_) => parse_rows::<i64>(conv)?,
             ColumnData::DateTime2(_) => parse_rows::<i64>(conv)?,
+            ColumnData::Time(_) => parse_rows::<i64>(conv)?,
             ColumnData::Date(_) => parse_rows::<i32>(conv)?,
             ColumnData::Xml(_) => parse_rows::<ByteArray>(conv)?,
             _ => {
