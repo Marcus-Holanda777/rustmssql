@@ -116,7 +116,7 @@ fn to_type_column(schema: &MSchema) -> Type {
             PhysicalType::INT64,
             Some(LogicalType::Time {
                 is_adjusted_to_u_t_c: false,
-                unit: TimeUnit::MICROS(MicroSeconds {}),
+                unit: datetime_precision,
             }),
         ),
         "binary" | "varbinary" | "image" => get_type(&col, PhysicalType::BYTE_ARRAY, None),

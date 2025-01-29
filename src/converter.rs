@@ -189,6 +189,8 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
             let mut lotes: Vec<i64> = Vec::new();
             let mut levels: Vec<i16> = Vec::new();
 
+            let precision = self.mssql.as_ref().unwrap().datetime_precision.unwrap_or(0) as u32;
+
             self.col_data.iter().for_each(|f| match f {
                 ColumnData::I64(Some(valor)) => {
                     lotes.push(*valor);
@@ -200,7 +202,12 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                     let datetime =
                         convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
 
-                    let row_add = datetime.and_utc().timestamp_millis(); // Retorna o timestamp diretamente como i64
+                    let row_add = match precision {
+                        0..=3 => datetime.and_utc().timestamp_millis(),
+                        4..=6 => datetime.and_utc().timestamp_millis(),
+                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default()
+                    };
+
                     lotes.push(row_add);
                     levels.push(1);
                 }
@@ -218,12 +225,28 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                         + chrono::Duration::nanoseconds(nanos);
 
                     let datetime = NaiveDateTime::new(result_date, time_t);
-                    let row_add = datetime.and_utc().timestamp_nanos_opt().unwrap_or_default();
+                    let row_add = match precision {
+                        0..=3 => datetime.and_utc().timestamp_millis(),
+                        4..=6 => datetime.and_utc().timestamp_millis(),
+                        7.. => datetime.and_utc().timestamp_nanos_opt().unwrap_or_default()
+                    };
 
                     lotes.push(row_add);
                     levels.push(1);
                 }
                 ColumnData::DateTime2(None) => levels.push(0),
+                ColumnData::Time(Some(dt)) => {
+                    let increments = dt.increments() as i64;
+                    let scale = dt.scale() as u32;
+
+                    let nanos = increments * 10i64.pow(9 - scale);
+
+                    println!("{}, {}", increments, scale);
+                    lotes.push(nanos);
+                    levels.push(1);
+
+                },
+                ColumnData::Time(None) => levels.push(0),
                 _ => levels.push(0),
             });
 
