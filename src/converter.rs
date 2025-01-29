@@ -1,12 +1,13 @@
 use crate::MSchema;
 use anyhow::Ok;
-use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use parquet::data_type::{
     BoolType, ByteArray, ByteArrayType, DoubleType, FixedLenByteArray, FixedLenByteArrayType,
     FloatType, Int32Type, Int64Type,
 };
 use parquet::file::writer::SerializedColumnWriter;
 use tiberius::ColumnData;
+use tiberius::time::DateTime;
 
 pub trait ColumnProcess<T> {
     fn process(&mut self) -> anyhow::Result<(), anyhow::Error> {
@@ -198,8 +199,7 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                 }
                 ColumnData::I64(None) => levels.push(0),
                 ColumnData::DateTime(Some(dt)) => {
-                    let datetime =
-                        convert_to_naive_datetime(dt.days().into(), dt.seconds_fragments() as i64);
+                    let datetime = convert_to_naive_datetime(dt);
 
                     let row_add = match precision {
                         0..=3 => datetime.and_utc().timestamp_millis(),
@@ -339,22 +339,44 @@ fn encode_decimal(scaled_value: i128, precision: u32, length_in_bytes: usize) ->
     bytes
 }
 
-fn convert_to_naive_datetime(days: i64, seconds_fragment: i64) -> NaiveDateTime {
-    // Data base do SQL Server para DATETIME
-    let base_date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
+fn convert_to_naive_datetime(dt: &DateTime) -> NaiveDateTime {
+    fn from_days(days: i64, start_year: i32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(start_year, 1, 1).unwrap_or_default() + chrono::Duration::days(days)
+    }
 
-    // Adicionar os dias ao valor base
-    let date = base_date + chrono::Duration::days(days);
+    fn from_sec_fragments(sec_fragments: i64) -> NaiveTime {
+        NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
+            + chrono::Duration::nanoseconds(sec_fragments * (1e9 as i64) / 300)
+    }
 
-    // calcula nanosegundos
-    let fractional_nanoseconds = seconds_fragment * (1e9 as i64) / 300;
+    let date = NaiveDateTime::new(
+        from_days(dt.days() as i64, 1900),
+        from_sec_fragments(dt.seconds_fragments() as i64),
+    );
 
-    let time = NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
-        + Duration::nanoseconds(fractional_nanoseconds);
+    // Extrai os nanossegundos (que incluem milissegundos)
+    let nanos = date.and_utc().nanosecond();
 
-    let datetime = NaiveDateTime::new(date, time);
+    // Calcula os milissegundos e a fração restante (microssegundos e nanossegundos)
+    let milliseconds = nanos / 1_000_000; // Parte inteira dos milissegundos
+    let remainder = nanos % 1_000_000; // Fração restante (microssegundos e nanossegundos)
 
-    datetime
+    // Arredonda para o milissegundo mais próximo
+    let rounded_milliseconds = if remainder >= 500_000 {
+        milliseconds + 1
+    } else {
+        milliseconds
+    };
+
+    // Garante que os milissegundos não ultrapassem 999
+    let clamped_milliseconds = rounded_milliseconds.min(999);
+
+    // Cria um novo NaiveDateTime com os milissegundos arredondados
+    let finaly = date
+        .with_nanosecond(clamped_milliseconds * 1_000_000)
+        .unwrap_or_default();
+
+    finaly
 }
 
 fn convert_to_naive_datetime2(days: i64, increments: i64, scale: u32) -> NaiveDateTime {
