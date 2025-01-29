@@ -1,6 +1,6 @@
 use crate::MSchema;
 use anyhow::Ok;
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use parquet::data_type::{
     BoolType, ByteArray, ByteArrayType, DoubleType, FixedLenByteArray, FixedLenByteArrayType,
     FloatType, Int32Type, Int64Type,
@@ -198,9 +198,8 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                 }
                 ColumnData::I64(None) => levels.push(0),
                 ColumnData::DateTime(Some(dt)) => {
-                    // Criar a data e hora a partir de `dt`
                     let datetime =
-                        convert_to_naive_datetime(dt.days(), dt.seconds_fragments() as i32);
+                        convert_to_naive_datetime(dt.days().into(), dt.seconds_fragments() as i64);
 
                     let row_add = match precision {
                         0..=3 => datetime.and_utc().timestamp_millis(),
@@ -213,18 +212,11 @@ impl<'a> ColumnProcess<i64> for Converter<'a> {
                 }
                 ColumnData::DateTime(None) => levels.push(0),
                 ColumnData::DateTime2(Some(dt)) => {
-                    let days = dt.date().days();
-                    let base_date_sql_server = NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
-                    let result_date = base_date_sql_server + chrono::Duration::days(days.into());
-
+                    let days = dt.date().days().into();
                     let increments = dt.time().increments() as i64;
                     let scale = dt.time().scale() as u32;
 
-                    let nanos = increments * 10i64.pow(9 - scale);
-                    let time_t = chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
-                        + chrono::Duration::nanoseconds(nanos);
-
-                    let datetime = NaiveDateTime::new(result_date, time_t);
+                    let datetime = convert_to_naive_datetime2(days, increments, scale);
                     let row_add = match precision {
                         0..=3 => datetime.and_utc().timestamp_millis(),
                         4..=6 => datetime.and_utc().timestamp_micros(),
@@ -347,24 +339,38 @@ fn encode_decimal(scaled_value: i128, precision: u32, length_in_bytes: usize) ->
     bytes
 }
 
-fn convert_to_naive_datetime(days: i32, seconds_fragment: i32) -> NaiveDateTime {
+fn convert_to_naive_datetime(days: i64, seconds_fragment: i64) -> NaiveDateTime {
     // Data base do SQL Server para DATETIME
     let base_date = NaiveDate::from_ymd_opt(1900, 1, 1).unwrap_or_default();
 
     // Adicionar os dias ao valor base
-    let date = base_date + chrono::Duration::days(days.into());
+    let date = base_date + chrono::Duration::days(days);
 
-    // Os "seconds_fragment" estão em 1/300 segundos. Precisamos convertê-los para segundos reais.
-    let seconds = seconds_fragment as f64 / 300.0;
+    // calcula nanosegundos
+    let fractional_nanoseconds = seconds_fragment * (1e9 as i64) / 300;
 
-    // Separar a parte inteira (segundos completos) e a fração de segundo (nanossegundos)
-    let whole_seconds = seconds.trunc() as i64;
-    let fractional_nanoseconds = ((seconds - seconds.trunc()) * 1_000_000_000.0) as i64;
+    let time = NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
+        + Duration::nanoseconds(fractional_nanoseconds);
 
-    // Adicionar os segundos e nanossegundos ao horário base (meia-noite)
-    let datetime = date.and_hms_opt(0, 0, 0).unwrap_or_default()
-        + chrono::Duration::seconds(whole_seconds)
-        + chrono::Duration::nanoseconds(fractional_nanoseconds);
+    let datetime = NaiveDateTime::new(date, time);
+
+    datetime
+}
+
+fn convert_to_naive_datetime2(days: i64, increments: i64, scale: u32) -> NaiveDateTime {
+    // Data base do SQL Server para DATETIME
+    let base_date = NaiveDate::from_ymd_opt(1, 1, 1).unwrap_or_default();
+
+    // Adicionar os dias ao valor base
+    let date = base_date + chrono::Duration::days(days);
+
+    // calcula nanosegundos
+    let fractional_nanoseconds = increments * 10i64.pow(9 - scale);
+
+    let time = NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default()
+        + Duration::nanoseconds(fractional_nanoseconds);
+
+    let datetime = NaiveDateTime::new(date, time);
 
     datetime
 }
