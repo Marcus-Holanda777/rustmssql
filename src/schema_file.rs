@@ -1,6 +1,6 @@
 use crate::MSchema;
 use crate::converter::{Converter, parse_rows};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::{properties::WriterProperties, writer::SerializedFileWriter};
 use parquet::format::NanoSeconds;
@@ -198,6 +198,7 @@ pub async fn write_parquet_from_stream(
     schema: Arc<Type>,
     schema_sql: &Vec<MSchema>,
     path: &str,
+    progress: &ProgressBar,
 ) -> anyhow::Result<()> {
     //! Escreve um arquivo parquet a partir de um QueryStream.
     //! Recebe um QueryStream, um Arc<Type> e um &str.
@@ -218,15 +219,7 @@ pub async fn write_parquet_from_stream(
 
     // armazena os dados
     let mut rows_batch: i32 = 1;
-
-    // Barra de progresso
-    let progress = ProgressBar::new_spinner();
-    progress.set_style(
-        ProgressStyle::with_template("[{elapsed_precise}] {spinner:.green} {msg}")?
-            .tick_strings(&["-", "\\", "|", "/"]),
-    );
-    progress.enable_steady_tick(std::time::Duration::from_millis(100));
-    progress.set_message("Consultando ...");
+    progress.set_message("Inicio da Exportacao ...");
 
     while let Some(row) = stream.try_next().await? {
         if let QueryItem::Row(r) = row {
@@ -248,7 +241,10 @@ pub async fn write_parquet_from_stream(
     }
 
     writer.close()?;
-    progress.finish_with_message(format!("Finalizados {} registros exportados. ", rows_batch));
+    progress.finish_with_message(format!(
+        "Finalizados {} registros exportados ... ✅",
+        rows_batch
+    ));
 
     Ok(())
 }

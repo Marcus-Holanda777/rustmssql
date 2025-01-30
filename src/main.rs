@@ -1,5 +1,6 @@
 use anyhow::Ok;
 use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 use tiberius::{Query, QueryStream};
 
 mod connections;
@@ -76,17 +77,47 @@ async fn main() -> anyhow::Result<()> {
         select.bind(param);
     }
 
+    // INICIAR A BARRA DE PROGRESSO AQUI
+
+    // Barra de progresso
+    let progress = start_progress()?;
+    progress.set_message("Consultando ...");
+
     let stream: QueryStream<'_> = select.query(&mut client).await?;
+
+    progress.finish_with_message("Consulta Finalizada ... ✅");
+
+    let progress = start_progress()?;
 
     write_parquet_from_stream(
         stream,
         Arc::new(schema),
         &schema_sql,
         cli.file_parquet.as_str(),
+        &progress,
     )
     .await?;
 
     println!("{}", "=*".repeat(30));
 
     Ok(())
+}
+
+fn start_progress() -> anyhow::Result<ProgressBar> {
+    let progress = ProgressBar::new_spinner();
+    progress.set_style(
+        ProgressStyle::with_template("[{elapsed_precise:.magenta}] {spinner:.cyan} {msg}")?
+            .tick_strings(&[
+                "▰▱▱▱▱▱▱",
+                "▰▰▱▱▱▱▱",
+                "▰▰▰▱▱▱▱",
+                "▰▰▰▰▱▱▱",
+                "▰▰▰▰▰▱▱",
+                "▰▰▰▰▰▰▱",
+                "▰▰▰▰▰▰▰",
+                "▰▱▱▱▱▱▱",
+            ]),
+    );
+    progress.enable_steady_tick(std::time::Duration::from_millis(80));
+    Ok(progress)
 }
