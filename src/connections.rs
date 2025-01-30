@@ -110,7 +110,7 @@ pub async fn schema_mssql_query(
         r#"
         EXEC sp_describe_first_result_set @tsql = N'{}'
        "#,
-        query
+        query.replace("'", "''") // scape
     );
 
     let select: Query<'_> = Query::new(sql);
