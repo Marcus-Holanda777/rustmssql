@@ -94,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(schema),
         &schema_sql,
         cli.file_parquet.as_str(),
-        &progress,
+        Some(&progress),
     )
     .await?;
 
