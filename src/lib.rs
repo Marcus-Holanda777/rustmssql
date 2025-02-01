@@ -119,7 +119,7 @@ fn py_export_to_parquet(
 
 /// Criar o módulo Python
 #[pymodule]
-fn rustmssql(_py: Python, m: &PyModule) -> PyResult<()> {
+fn rustmssql_python(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_export_to_parquet, m)?)?;
     Ok(())
 }
