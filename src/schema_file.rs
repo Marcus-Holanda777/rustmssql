@@ -198,7 +198,7 @@ pub async fn write_parquet_from_stream(
     schema: Arc<Type>,
     schema_sql: &Vec<MSchema>,
     path: &str,
-    progress: Option<&ProgressBar>,
+    progress: &ProgressBar,
 ) -> anyhow::Result<()> {
     //! Escreve um arquivo parquet a partir de um QueryStream.
     //! Recebe um QueryStream, um Arc<Type> e um &str.
@@ -220,9 +220,7 @@ pub async fn write_parquet_from_stream(
     // armazena os dados
     let mut rows_batch: i32 = 1;
 
-    if let Some(progress) = progress {
-        progress.set_message("Inicio da Exportacao ...");
-    }
+    progress.set_message("Inicio da Exportacao ...");
 
     while let Some(row) = stream.try_next().await? {
         if let QueryItem::Row(r) = row {
@@ -231,10 +229,7 @@ pub async fn write_parquet_from_stream(
             }
 
             if rows_batch % MAX_GROUP_SIZE == 0 {
-                if let Some(progress) = progress {
-                    progress.set_message(format!("Gravando {} regitros ...", rows_batch));
-                }
-
+                progress.set_message(format!("Gravando {} regitros ...", rows_batch));
                 process_rows(&schema_sql, &mut data, &mut writer).await?;
             }
             rows_batch += 1;
@@ -242,20 +237,16 @@ pub async fn write_parquet_from_stream(
     }
 
     if !data.is_empty() {
-        if let Some(progress) = progress {
-            progress.set_message(format!("Gravando {} regitros ...", rows_batch));
-        }
+        progress.set_message(format!("Gravando {} regitros ...", rows_batch));
         process_rows(&schema_sql, &mut data, &mut writer).await?;
     }
 
     writer.close()?;
 
-    if let Some(progress) = progress {
-        progress.finish_with_message(format!(
-            "Finalizados {} registros exportados ... ✅",
-            rows_batch
-        ));
-    }
+    progress.finish_with_message(format!(
+        "Finalizados {} registros exportados ... ✅",
+        rows_batch
+    ));
 
     Ok(())
 }
